@@ -2,12 +2,14 @@ import Head from 'next/head'
 import {nip19} from 'nostr-tools'
 
 import {getMetadata} from '../../utils/get-event'
+import {linkPreviewStyle} from '../../utils/preview'
 import Profile from '../../components/profile'
 
 export async function getServerSideProps(context) {
   const pubkey = context.params.pubkey
   const relays = context.query.relays?.split(',') || []
-  const metadata = await getMetadata(pubkey, relays)
+  const previewStyle = linkPreviewStyle(context)
+  const metadata = previewStyle ? await getMetadata(pubkey, relays) : null
 
   if (metadata) {
     // event exists, cache forever
@@ -19,23 +21,30 @@ export async function getServerSideProps(context) {
   }
 
   return {
-    props: {pubkey, metadata, relays}
+    props: {pubkey, metadata, relays, previewStyle}
   }
 }
 
-export default function ProfilePage({pubkey, metadata, relays}) {
-  try {
-    metadata = JSON.parse(metadata.content)
-  } catch (err) {
-    metadata = {}
-  }
-
-  let title = metadata.display_name
-    ? `${metadata.display_name} (${metadata.name})`
-    : metadata.name
-
+export default function ProfilePage({pubkey, metadata, relays, previewStyle}) {
   return (
     <>
+      {previewStyle && linkPreview()}
+      {!previewStyle && <Profile pubkey={pubkey} relays={relays} />}
+    </>
+  )
+
+  function linkPreview() {
+    try {
+      metadata = JSON.parse(metadata.content)
+    } catch (err) {
+      metadata = {}
+    }
+
+    let title = metadata.display_name
+      ? `${metadata.display_name} (${metadata.name})`
+      : metadata.name
+
+    return (
       <Head>
         <title>Nostr Public Key {nip19.npubEncode(pubkey)}</title>
         <meta property="og:site_name" content={nip19.npubEncode(pubkey)} />
@@ -48,8 +57,6 @@ export default function ProfilePage({pubkey, metadata, relays}) {
         )}
         <meta property="twitter:card" content="summary" />
       </Head>
-
-      <Profile pubkey={pubkey} relays={relays} />
-    </>
-  )
+    )
+  }
 }
